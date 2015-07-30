@@ -1,0 +1,4 @@
+name = DREF
+description = Drush recipes integration for entity form
+core = 7.x
+dependencies[] = entityform

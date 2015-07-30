@@ -1,0 +1,73 @@
+<?php
+/**
+ * DREF
+ * Map entityform input to a drush recipe
+ */
+
+/**
+* Implements hook_help()
+*
+* Displays help and module information
+*
+* @param path which path of the site we're using to display help
+*
+* @param arg array that holds the current path returned from arg() function
+ */
+
+function dref_help($path, $arg){
+	switch ($path){
+	   case "admin/help#dref":
+	      return t("Take in results from entity form and convert them into drush recipe commands.");
+	   break;
+	}
+}
+
+/**
+ * Implements hook_entity_insert().
+ */
+function dref_entity_insert($entity, $type) {
+  // make sure its the entity and form type we care about
+  if ($type == 'entityform' && $entity->type == 'drush_recipe_builder') {
+    $properties = get_object_vars($entity);
+    $hash = uniqid();
+    $calls = array();
+    foreach($properties as $key => $value) {
+      // ensure that we have a field name pattern we care about
+      if (strpos($key, 'field_dref_') === 0 && isset($value['und'][0]['value'])) {
+        $val = $value['und'][0]['value'];
+        // turn key name into the functions to call
+        $call = explode('_', $key);
+        // throw away first two parts
+        array_shift($call);
+        array_shift($call);
+        switch ($call[0]) {
+          case 'distribution':
+            // ensure that these hop onto the array before everything else
+            array_unshift($calls, 'si ' . $val . ' --root=' . $hash);
+            array_unshift($calls, 'dl ' . $val . ' --destination=' . $hash);
+          break;
+          case 'vset':
+            $calls[] = 'vset ' . $call[1] . ' "' . $val . '" --root=' . $hash;
+          break;
+          case 'cook':
+            // cooks are boolean
+            if ($val) {
+              $p1 = $call[1];
+              array_shift($call);
+              array_shift($call);
+              $tmp = implode('_', $call);
+              $calls[] = 'cook ' . $p1 . ' ' . $tmp . ' --root=' . $hash;
+            }
+          break;
+        }
+      }
+    }
+    $path = "/tmp/$hash.drecipe";
+    $dr = fopen($path, "a");
+    foreach ($calls as $call) {
+      dpm($call);
+      fwrite($dr, 'drush ' . $call . " --y\r\n");
+    }
+    dpm($path);
+  }
+}
